@@ -2,6 +2,10 @@
 """
 [!] Use Cryptodome instead of Crypto [!]
 Crypto library have vulnerabilities
+
+pip install pycryptodome
+pip install pycryptodomex
+
 """
 
 from Cryptodome.Signature import PKCS1_v1_5 
@@ -10,9 +14,12 @@ from Cryptodome.Hash import SHA256
 from Cryptodome.PublicKey import RSA
 from Cryptodome.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
+import string
 import hashlib
 import random
 
+class CryptoException(Exception):
+    """For specyfic exception from Crypto Class"""
 
 BLOCK_SIZE = 16
 
@@ -23,7 +30,7 @@ class Crypto:
         pass
     
     @staticmethod
-    def encrypt_AES(plain_text, key, iv=None, block_size=BLOCK_SIZE):
+    def encrypt_AES(plain_text, key=None, iv=None, block_size=BLOCK_SIZE):
         """
         Encrypt plain_text with key and iv
 
@@ -44,19 +51,21 @@ class Crypto:
             [!] Never use ECB mode [!]
 
         """
+        if not key:
+            key = Crypto.get_random_bytes(block_size)
         if not iv:
             iv = Crypto.get_iv(key)
 
         try:
             encryption_suite = AES.new(key, AES.MODE_CBC, iv)
-            cipher_text = encryption_suite.encrypt(pad(plain_text, BLOCK_SIZE, style='pkcs7'))
+            cipher_text = encryption_suite.encrypt(pad(plain_text, block_size, style='pkcs7'))
 
             if plain_text == cipher_text:
-                raise PITException('Encryption failed - encrypted file is the same as original')
+                raise CryptoException('Encryption failed - encrypted file is the same as original')
 
             return cipher_text
         except BaseException as exception:
-            raise PITException("[AES] Encryption - can't encrypt data")
+            raise CryptoException("[AES] Encryption - can't encrypt data: ", exception)
 
     @staticmethod
     def decrypt_AES(cipher_text, key, iv=None, block_size=BLOCK_SIZE):
@@ -78,8 +87,9 @@ class Crypto:
         """
         if not iv:
             iv = Crypto.get_iv(key)
+
         decryption_suite = AES.new(key, AES.MODE_CBC, iv)
-        decrypted_data = unpad(decryption_suite.decrypt(data_to_decrypt), block_size)
+        decrypted_data = unpad(decryption_suite.decrypt(cipher_text), block_size)
         return decrypted_data
 
     @staticmethod
@@ -128,7 +138,7 @@ class Crypto:
         return plain_text
 
     @staticmethod
-    def get_random_key(block_size=BLOCK_SIZE):
+    def get_random_bytes(block_size=BLOCK_SIZE):
         """
         Generate random block_size-length for encryption with AES cipher
 
@@ -143,22 +153,23 @@ class Crypto:
         return bytes(random_bytes.encode('utf-8'))
     
     @staticmethod
-    def get_iv(key, block_size=BLOCK_SIZE):
+    def get_iv(key):
         """
         Create initialization vector based on AES key
 
         Args:
-            key (bytes): block_size-lenght AES key
-            block_size(int, optional): Default 16
+            key (bytes): AES key
 
         Returns:
-            iv (bytes): initialization vector
-                first block_size-length bytes from sha256(key)
+            iv (bytes): initialization vector 16 bytes long
+            
+        Note:
+            IV length must be 16 bytes long
 
         """
         key_h = hashlib.sha256()
         key_h.update(key)
-        iv = key_h.digest()[:block_size]
+        iv = key_h.digest()[:16]
         return iv
     
     @staticmethod
@@ -193,6 +204,3 @@ class Crypto:
         fd = open("public_key.pem", "wb")
         fd.write(public_key)
         fd.close()
-
-
-cipher_text = Crypto.encrypt_AES('1234567890123456'.encode('utf-8'), '1234567890123456'.encode('utf-8'), "1234567890123456".encode('utf-8'))
